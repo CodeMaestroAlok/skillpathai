@@ -1,194 +1,181 @@
 import streamlit as st
-import sqlite3
-import pandas as pd
 import plotly.express as px
+import pandas as pd
 
-# ================= PAGE CONFIG =================
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="SkillPath AI",
     page_icon="🧠",
     layout="wide"
 )
 
-# ================= DATABASE =================
-conn = sqlite3.connect("users.db", check_same_thread=False)
-cursor = conn.cursor()
+# ---------------- STYLING ----------------
+st.markdown("""
+<style>
+body { background-color: #0e1117; }
+.block-container { padding-top: 2rem; }
+h1, h2, h3 { color: #f9fafb; }
+</style>
+""", unsafe_allow_html=True)
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT,
-    phone TEXT,
-    provider TEXT
-)
-""")
+# ---------------- SESSION ----------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = True
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS memory (
-    user_id INTEGER,
-    role TEXT,
-    message TEXT
-)
-""")
-conn.commit()
+if "chat" not in st.session_state:
+    st.session_state.chat = [{
+        "role": "assistant",
+        "content": "Hi 👋 I’m SkillPath AI. Ask me about careers, skills, projects, interviews, or roadmaps!"
+    }]
 
-# ================= CAREER DATA =================
-CAREERS = {
+# ---------------- CAREER DATA ----------------
+career_data = {
     "Data Analyst": ["Python", "SQL", "Excel", "Statistics", "Power BI"],
     "Web Developer": ["HTML", "CSS", "JavaScript", "React", "Git"],
     "AI Engineer": ["Python", "Machine Learning", "Deep Learning", "NLP"],
-    "Cybersecurity Analyst": ["Networking", "Linux", "Security", "Python"],
-    "Cloud Engineer": ["AWS", "Azure", "Linux", "Networking"],
     "Digital Marketer": ["SEO", "Content Writing", "Analytics"],
-    "UI/UX Designer": ["Figma", "Design Thinking", "Wireframing"],
-    "Mobile App Developer": ["Flutter", "React Native", "APIs"],
-    "DevOps Engineer": ["Docker", "Kubernetes", "CI/CD"],
-    "Business Analyst": ["Excel", "SQL", "Visualization"]
+    "Cybersecurity Analyst": ["Networking", "Linux", "Security Basics"],
+    "Cloud Engineer": ["AWS", "Docker", "Linux"],
+    "Software Tester": ["Manual Testing", "Automation", "Selenium"],
+    "UI/UX Designer": ["Figma", "Design Principles", "Prototyping"],
+    "Business Analyst": ["Excel", "SQL", "Communication"],
+    "DevOps Engineer": ["CI/CD", "Docker", "Kubernetes"]
 }
 
-EDUCATION_LEVELS = ["High School", "Diploma", "Undergraduate", "Postgraduate"]
+project_ideas = {
+    "Data Analyst": [
+        "Sales Dashboard using Power BI",
+        "COVID Data Analysis",
+        "E-commerce Analytics"
+    ],
+    "Web Developer": [
+        "Portfolio Website",
+        "Blog Platform",
+        "E-commerce Website"
+    ],
+    "AI Engineer": [
+        "Chatbot",
+        "Resume Screener",
+        "Image Classifier"
+    ]
+}
 
-# ================= SESSION =================
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "user_id" not in st.session_state:
-    st.session_state.user_id = None
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+courses = {
+    "Python": "IBM Python for Data Science",
+    "SQL": "SQL for Data Analysis – Coursera",
+    "Power BI": "Microsoft Power BI Learning Path",
+    "Machine Learning": "IBM Machine Learning Professional Certificate",
+    "React": "Meta Frontend Developer"
+}
 
-# ================= AUTH =================
-def login_user(email=None, phone=None, provider="email"):
-    cursor.execute(
-        "INSERT INTO users (email, phone, provider) VALUES (?,?,?)",
-        (email, phone, provider)
+# ---------------- SIDEBAR ----------------
+with st.sidebar:
+    st.markdown("## 👤 Profile")
+
+    education = st.selectbox(
+        "Education Level",
+        ["High School", "Diploma", "Undergraduate", "Postgraduate"]
     )
-    conn.commit()
-    return cursor.lastrowid
 
-def get_user(email=None, phone=None):
-    if email:
-        cursor.execute("SELECT id FROM users WHERE email=?", (email,))
-    else:
-        cursor.execute("SELECT id FROM users WHERE phone=?", (phone,))
-    row = cursor.fetchone()
-    return row[0] if row else None
+    career = st.selectbox(
+        "Target Career",
+        list(career_data.keys())
+    )
 
-# ================= LOGIN PAGE =================
-if not st.session_state.logged_in:
-    st.title("🔐 SkillPath AI Login")
+    all_skills = sorted(set(skill for v in career_data.values() for skill in v))
+    skills = st.multiselect("Your Skills", all_skills)
 
-    tab1, tab2, tab3 = st.tabs(["📧 Email", "📱 Phone", "🌐 Google"])
+    st.markdown("---")
+    if st.button("🚪 Logout"):
+        st.session_state.logged_in = False
+        st.session_state.chat = []
+        st.experimental_rerun()
 
-    with tab1:
-        email = st.text_input("Email")
-        if st.button("Login with Email"):
-            uid = get_user(email=email)
-            if not uid:
-                uid = login_user(email=email)
-            st.session_state.logged_in = True
-            st.session_state.user_id = uid
-            st.rerun()
+# ---------------- MAIN UI ----------------
+st.title("🧠 SkillPath AI")
+st.caption("ChatGPT-style Career Guidance Assistant")
 
-    with tab2:
-        phone = st.text_input("Phone Number")
-        if st.button("Login with Phone"):
-            uid = get_user(phone=phone)
-            if not uid:
-                uid = login_user(phone=phone, provider="phone")
-            st.session_state.logged_in = True
-            st.session_state.user_id = uid
-            st.rerun()
+required = career_data[career]
+missing = [s for s in required if s not in skills]
 
-    with tab3:
-        google = st.text_input("Google Email")
-        if st.button("Continue with Google"):
-            uid = get_user(email=google)
-            if not uid:
-                uid = login_user(email=google, provider="google")
-            st.session_state.logged_in = True
-            st.session_state.user_id = uid
-            st.rerun()
+# ---------------- SKILL GAP CHART ----------------
+df = pd.DataFrame({
+    "Skill": required,
+    "Status": ["Have" if s in skills else "Missing" for s in required]
+})
 
-# ================= DASHBOARD =================
-else:
-    st.title("🧠 SkillPath AI")
-    st.caption("ChatGPT-style Career Guidance Assistant")
+fig = px.bar(
+    df,
+    x="Skill",
+    color="Status",
+    title="📊 Skill Gap Analysis",
+    color_discrete_map={"Have": "#22c55e", "Missing": "#ef4444"}
+)
 
-    # -------- SIDEBAR --------
-    st.sidebar.header("👤 Profile")
+fig.update_layout(
+    plot_bgcolor="#0e1117",
+    paper_bgcolor="#0e1117",
+    font_color="white"
+)
 
-    education = st.sidebar.selectbox("Education Level", EDUCATION_LEVELS)
-    career = st.sidebar.selectbox("Target Career", list(CAREERS.keys()))
-    skills = st.sidebar.multiselect("Your Skills", CAREERS[career])
+st.plotly_chart(fig, use_container_width=True)
 
-    # -------- SKILL GAP --------
-    required = CAREERS[career]
-    missing = list(set(required) - set(skills))
+# ---------------- ROADMAP ----------------
+st.markdown("## 🗺️ Career Roadmap")
 
-    col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
-    with col1:
-        st.subheader("📉 Skill Gap Analysis")
-        df = pd.DataFrame({
-            "Skill": required,
-            "Status": ["Have" if s in skills else "Missing" for s in required]
-        })
-        fig = px.bar(
-            df,
-            x="Skill",
-            color="Status",
-            title="Skill Gap Chart",
-            color_discrete_map={"Have": "green", "Missing": "red"}
-        )
-        st.plotly_chart(fig, use_container_width=True)
+with col1:
+    st.markdown("### 🟢 Beginner")
+    st.write(required[:2])
 
-    with col2:
-        st.subheader("🛣 Career Roadmap")
+with col2:
+    st.markdown("### 🟡 Intermediate")
+    st.write(required[2:4])
 
-        st.markdown("### 🟢 Beginner")
-        st.write(missing[:2] or "Focus on fundamentals")
+with col3:
+    st.markdown("### 🔵 Advanced")
+    st.write("Certifications, Projects, Real-world Experience")
 
-        st.markdown("### 🟡 Intermediate")
-        st.write(missing[2:4] or "Build projects")
+# ---------------- PROJECT IDEAS ----------------
+st.markdown("## 🛠️ Project Ideas")
+for p in project_ideas.get(career, []):
+    st.write("•", p)
 
-        st.markdown("### 🔵 Advanced")
-        st.write("Specialization, certifications, real-world projects")
+# ---------------- COURSES ----------------
+st.markdown("## 🎓 Recommended Courses")
+for s in missing:
+    if s in courses:
+        st.write(f"• **{s}** → {courses[s]}")
 
-    # -------- CHATBOT --------
-    st.subheader("💬 SkillPath AI Chat")
+# ---------------- CHATBOT ----------------
+st.markdown("## 💬 SkillPath AI Chat")
 
-    for msg in st.session_state.chat:
-        st.chat_message(msg["role"]).write(msg["content"])
+for msg in st.session_state.chat:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    user_input = st.chat_input("Ask about roadmap, skills, jobs...")
+query = st.chat_input("Ask about jobs, roadmap, projects, interviews...")
 
-    if user_input:
-        st.session_state.chat.append({"role": "user", "content": user_input})
+if query:
+    st.session_state.chat.append({"role": "user", "content": query})
 
-        response = f"""
-Here is a clear roadmap for **{career}** based on your profile:
+    response = f"""
+### 🎯 {career} Guidance
 
-🎓 Education: {education}
+**Your Skills:** {', '.join(skills) if skills else 'None yet'}  
+**Skills to Learn:** {', '.join(missing) if missing else 'You are job-ready 🎉'}
 
-✅ Skills you have:
-{', '.join(skills) if skills else 'None yet'}
+#### 📌 Next Steps
+- Learn missing skills
+- Build 2–3 projects
+- Apply for internships / entry roles
 
-❌ Skills to learn:
-{', '.join(missing) if missing else 'You are job-ready!'}
-
-📌 Next Steps:
-• Learn missing skills step-by-step
-• Build 2–3 projects
-• Apply for internships or entry-level roles
+Ask me:
+• interview questions  
+• resume tips  
+• career switch advice
 """
 
-        st.session_state.chat.append({"role": "assistant", "content": response})
-        st.rerun()
-
-    # -------- LOGOUT --------
-    if st.sidebar.button("Logout"):
-        st.session_state.logged_in = False
-        st.session_state.user_id = None
-        st.session_state.chat = []
-        st.rerun()
-
+    st.session_state.chat.append({"role": "assistant", "content": response})
+    st.experimental_rerun()
