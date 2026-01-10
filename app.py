@@ -1,181 +1,142 @@
 import streamlit as st
-import plotly.express as px
-import pandas as pd
+from ibm_watsonx_ai.foundation_models import Model
+from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="SkillPath AI",
-    page_icon="🧠",
+    page_icon="🤖",
     layout="wide"
 )
 
-# ---------------- STYLING ----------------
-st.markdown("""
-<style>
-body { background-color: #0e1117; }
-.block-container { padding-top: 2rem; }
-h1, h2, h3 { color: #f9fafb; }
-</style>
-""", unsafe_allow_html=True)
+# ---------------- LOAD SECRETS (SAFE) ----------------
+IBM_API_KEY = st.secrets["IBM_API_KEY"]
+IBM_PROJECT_ID = st.secrets["IBM_PROJECT_ID"]
+IBM_URL = st.secrets["IBM_URL"]
 
-# ---------------- SESSION ----------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = True
+# ---------------- IBM MODEL ----------------
+model = Model(
+    model_id="ibm/granite-13b-chat-v2",
+    credentials={
+        "apikey": IBM_API_KEY,
+        "url": IBM_URL
+    },
+    project_id=IBM_PROJECT_ID,
+    params={
+        GenParams.MAX_NEW_TOKENS: 450,
+        GenParams.TEMPERATURE: 0.3,
+        GenParams.TOP_P: 0.9
+    }
+)
 
-if "chat" not in st.session_state:
-    st.session_state.chat = [{
-        "role": "assistant",
-        "content": "Hi 👋 I’m SkillPath AI. Ask me about careers, skills, projects, interviews, or roadmaps!"
-    }]
-
-# ---------------- CAREER DATA ----------------
-career_data = {
-    "Data Analyst": ["Python", "SQL", "Excel", "Statistics", "Power BI"],
-    "Web Developer": ["HTML", "CSS", "JavaScript", "React", "Git"],
-    "AI Engineer": ["Python", "Machine Learning", "Deep Learning", "NLP"],
-    "Digital Marketer": ["SEO", "Content Writing", "Analytics"],
-    "Cybersecurity Analyst": ["Networking", "Linux", "Security Basics"],
-    "Cloud Engineer": ["AWS", "Docker", "Linux"],
-    "Software Tester": ["Manual Testing", "Automation", "Selenium"],
-    "UI/UX Designer": ["Figma", "Design Principles", "Prototyping"],
-    "Business Analyst": ["Excel", "SQL", "Communication"],
-    "DevOps Engineer": ["CI/CD", "Docker", "Kubernetes"]
-}
-
-project_ideas = {
-    "Data Analyst": [
-        "Sales Dashboard using Power BI",
-        "COVID Data Analysis",
-        "E-commerce Analytics"
-    ],
-    "Web Developer": [
-        "Portfolio Website",
-        "Blog Platform",
-        "E-commerce Website"
-    ],
-    "AI Engineer": [
-        "Chatbot",
-        "Resume Screener",
-        "Image Classifier"
-    ]
-}
-
-courses = {
-    "Python": "IBM Python for Data Science",
-    "SQL": "SQL for Data Analysis – Coursera",
-    "Power BI": "Microsoft Power BI Learning Path",
-    "Machine Learning": "IBM Machine Learning Professional Certificate",
-    "React": "Meta Frontend Developer"
-}
+# ---------------- SESSION STATE ----------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 # ---------------- SIDEBAR ----------------
-with st.sidebar:
-    st.markdown("## 👤 Profile")
+st.sidebar.title("👤 User Profile")
 
-    education = st.selectbox(
-        "Education Level",
-        ["High School", "Diploma", "Undergraduate", "Postgraduate"]
-    )
+education = st.sidebar.selectbox(
+    "Education Level",
+    ["High School", "Diploma", "Undergraduate", "Postgraduate"]
+)
 
-    career = st.selectbox(
-        "Target Career",
-        list(career_data.keys())
-    )
+career = st.sidebar.selectbox(
+    "Target Career",
+    [
+        "Data Analyst",
+        "Web Developer",
+        "AI Engineer",
+        "Cybersecurity",
+        "Software Engineer"
+    ]
+)
 
-    all_skills = sorted(set(skill for v in career_data.values() for skill in v))
-    skills = st.multiselect("Your Skills", all_skills)
+skills = st.sidebar.multiselect(
+    "Current Skills",
+    [
+        "Python", "SQL", "Excel", "Statistics",
+        "HTML", "CSS", "JavaScript",
+        "Machine Learning", "Git"
+    ]
+)
 
-    st.markdown("---")
-    if st.button("🚪 Logout"):
-        st.session_state.logged_in = False
-        st.session_state.chat = []
-        st.experimental_rerun()
+experience = st.sidebar.slider("Experience (Years)", 0, 10, 0)
+
+if st.sidebar.button("Clear Chat"):
+    st.session_state.messages = []
+    st.rerun()
 
 # ---------------- MAIN UI ----------------
-st.title("🧠 SkillPath AI")
-st.caption("ChatGPT-style Career Guidance Assistant")
+st.title("🤖 SkillPath AI")
+st.caption("Career Guidance Chatbot powered by IBM Watsonx (Tokyo Region)")
 
-required = career_data[career]
-missing = [s for s in required if s not in skills]
-
-# ---------------- SKILL GAP CHART ----------------
-df = pd.DataFrame({
-    "Skill": required,
-    "Status": ["Have" if s in skills else "Missing" for s in required]
-})
-
-fig = px.bar(
-    df,
-    x="Skill",
-    color="Status",
-    title="📊 Skill Gap Analysis",
-    color_discrete_map={"Have": "#22c55e", "Missing": "#ef4444"}
-)
-
-fig.update_layout(
-    plot_bgcolor="#0e1117",
-    paper_bgcolor="#0e1117",
-    font_color="white"
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-# ---------------- ROADMAP ----------------
-st.markdown("## 🗺️ Career Roadmap")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown("### 🟢 Beginner")
-    st.write(required[:2])
-
-with col2:
-    st.markdown("### 🟡 Intermediate")
-    st.write(required[2:4])
-
-with col3:
-    st.markdown("### 🔵 Advanced")
-    st.write("Certifications, Projects, Real-world Experience")
-
-# ---------------- PROJECT IDEAS ----------------
-st.markdown("## 🛠️ Project Ideas")
-for p in project_ideas.get(career, []):
-    st.write("•", p)
-
-# ---------------- COURSES ----------------
-st.markdown("## 🎓 Recommended Courses")
-for s in missing:
-    if s in courses:
-        st.write(f"• **{s}** → {courses[s]}")
-
-# ---------------- CHATBOT ----------------
-st.markdown("## 💬 SkillPath AI Chat")
-
-for msg in st.session_state.chat:
+for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-query = st.chat_input("Ask about jobs, roadmap, projects, interviews...")
+# ---------------- USER INPUT ----------------
+user_input = st.chat_input(
+    "Ask about career guidance, roadmap, resume tips, projects..."
+)
 
-if query:
-    st.session_state.chat.append({"role": "user", "content": query})
+if user_input:
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input
+    })
 
-    response = f"""
-### 🎯 {career} Guidance
+    with st.chat_message("user"):
+        st.markdown(user_input)
 
-**Your Skills:** {', '.join(skills) if skills else 'None yet'}  
-**Skills to Learn:** {', '.join(missing) if missing else 'You are job-ready 🎉'}
+    prompt = f"""
+You are SkillPath AI, a professional career guidance assistant.
 
-#### 📌 Next Steps
-- Learn missing skills
-- Build 2–3 projects
-- Apply for internships / entry roles
+User Profile:
+Education: {education}
+Career Goal: {career}
+Skills: {", ".join(skills) if skills else "None"}
+Experience: {experience} years
 
-Ask me:
-• interview questions  
-• resume tips  
-• career switch advice
+User Question:
+{user_input}
+
+Include:
+1. Career guidance
+2. Skill gap analysis
+3. Learning roadmap
+4. Weekly plan
+5. Resume tips
+6. Career readiness score (0–100)
+7. 3 project ideas
 """
 
-    st.session_state.chat.append({"role": "assistant", "content": response})
-    st.experimental_rerun()
+    try:
+        response = model.generate_text(prompt)
+    except Exception:
+        response = (
+            "⚠️ IBM Watsonx service is temporarily unavailable.\n"
+            "Please try again later."
+        )
+
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": response
+    })
+
+    with st.chat_message("assistant"):
+        st.markdown(response)
+
+# ---------------- CHAT EXPORT ----------------
+if st.session_state.messages:
+    chat_log = ""
+    for m in st.session_state.messages:
+        role = "User" if m["role"] == "user" else "SkillPath AI"
+        chat_log += f"{role}: {m['content']}\n\n"
+
+    st.download_button(
+        "📄 Download Chat History",
+        chat_log,
+        "skillpath_chat.txt",
+        "text/plain"
+    )
