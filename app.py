@@ -1,142 +1,132 @@
 import streamlit as st
-from ibm_watsonx_ai.foundation_models import Model
-from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
+import plotly.express as px
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="SkillPath AI",
-    page_icon="🤖",
+    page_icon="🧠",
     layout="wide"
 )
 
-# ---------------- LOAD SECRETS (SAFE) ----------------
-IBM_API_KEY = st.secrets["IBM_API_KEY"]
-IBM_PROJECT_ID = st.secrets["IBM_PROJECT_ID"]
-IBM_URL = st.secrets["IBM_URL"]
-
-# ---------------- IBM MODEL ----------------
-model = Model(
-    model_id="ibm/granite-13b-chat-v2",
-    credentials={
-        "apikey": IBM_API_KEY,
-        "url": IBM_URL
+# ---------------- DATA ----------------
+CAREERS = {
+    "Data Analyst": {
+        "skills": ["Python", "SQL", "Excel", "Statistics", "Power BI"],
+        "demand": "High",
+        "description": "Analyze data to support business decisions.",
+        "courses": {
+            "Python": "IBM Python for Data Science",
+            "SQL": "SQL for Data Analysis (Coursera)",
+            "Power BI": "Microsoft Power BI Learning Path"
+        }
     },
-    project_id=IBM_PROJECT_ID,
-    params={
-        GenParams.MAX_NEW_TOKENS: 450,
-        GenParams.TEMPERATURE: 0.3,
-        GenParams.TOP_P: 0.9
+    "Web Developer": {
+        "skills": ["HTML", "CSS", "JavaScript", "React"],
+        "demand": "High",
+        "description": "Build and maintain websites and web apps.",
+        "courses": {
+            "JavaScript": "JavaScript Basics (Udemy)",
+            "React": "React Official Docs"
+        }
+    },
+    "AI Engineer": {
+        "skills": ["Python", "Machine Learning", "Deep Learning"],
+        "demand": "Medium",
+        "description": "Design and deploy AI models.",
+        "courses": {
+            "ML": "Andrew Ng ML Course",
+            "DL": "Deep Learning Specialization"
+        }
     }
-)
+}
+
+EDUCATION_LEVELS = ["High School", "Diploma", "Bachelor", "Master"]
 
 # ---------------- SESSION STATE ----------------
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
 # ---------------- SIDEBAR ----------------
-st.sidebar.title("👤 User Profile")
+st.sidebar.title("👤 Profile")
 
-education = st.sidebar.selectbox(
-    "Education Level",
-    ["High School", "Diploma", "Undergraduate", "Postgraduate"]
+education = st.sidebar.selectbox("Education Level", EDUCATION_LEVELS)
+career = st.sidebar.selectbox("Target Career", list(CAREERS.keys()))
+user_skills = st.sidebar.multiselect(
+    "Your Skills",
+    CAREERS[career]["skills"]
 )
 
-career = st.sidebar.selectbox(
-    "Target Career",
-    [
-        "Data Analyst",
-        "Web Developer",
-        "AI Engineer",
-        "Cybersecurity",
-        "Software Engineer"
-    ]
-)
-
-skills = st.sidebar.multiselect(
-    "Current Skills",
-    [
-        "Python", "SQL", "Excel", "Statistics",
-        "HTML", "CSS", "JavaScript",
-        "Machine Learning", "Git"
-    ]
-)
-
-experience = st.sidebar.slider("Experience (Years)", 0, 10, 0)
-
-if st.sidebar.button("Clear Chat"):
-    st.session_state.messages = []
-    st.rerun()
+if st.sidebar.button("Logout"):
+    st.session_state.chat = []
+    st.experimental_set_query_params()
 
 # ---------------- MAIN UI ----------------
-st.title("🤖 SkillPath AI")
-st.caption("Career Guidance Chatbot powered by IBM Watsonx (Tokyo Region)")
+st.title("🧠 SkillPath AI")
+st.caption("ChatGPT-style Career Guidance Assistant")
 
-for msg in st.session_state.messages:
+# ---------------- SKILL GAP ----------------
+required_skills = CAREERS[career]["skills"]
+missing_skills = [s for s in required_skills if s not in user_skills]
+
+st.subheader("📊 Skill Gap Analysis")
+
+chart_data = {
+    "Skill": required_skills,
+    "Status": ["Have" if s in user_skills else "Missing" for s in required_skills]
+}
+
+fig = px.bar(
+    chart_data,
+    x="Skill",
+    color="Status",
+    title="Skill Gap Chart"
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# ---------------- CAREER ROADMAP ----------------
+st.subheader("🗺️ Career Roadmap")
+
+st.markdown("### 🟢 Beginner")
+st.write(missing_skills[:2] if missing_skills else "You are job-ready!")
+
+st.markdown("### 🟡 Intermediate")
+st.write(missing_skills[2:4])
+
+st.markdown("### 🔵 Advanced")
+st.write("Projects, certifications, real-world experience")
+
+# ---------------- COURSES ----------------
+st.subheader("🎓 Recommended Courses")
+for skill, course in CAREERS[career]["courses"].items():
+    st.write(f"• **{skill}** → {course}")
+
+# ---------------- CHATBOT ----------------
+st.subheader("💬 SkillPath AI Chat")
+
+for msg in st.session_state.chat:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# ---------------- USER INPUT ----------------
-user_input = st.chat_input(
-    "Ask about career guidance, roadmap, resume tips, projects..."
-)
+prompt = st.chat_input("Ask about careers, skills, roadmap, jobs...")
 
-if user_input:
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
+if prompt:
+    st.session_state.chat.append({"role": "user", "content": prompt})
 
-    with st.chat_message("user"):
-        st.markdown(user_input)
+    response = f"""
+**Career:** {career}  
+**Demand Level:** {CAREERS[career]['demand']}
 
-    prompt = f"""
-You are SkillPath AI, a professional career guidance assistant.
+Based on your education ({education}) and skills, here’s guidance:
 
-User Profile:
-Education: {education}
-Career Goal: {career}
-Skills: {", ".join(skills) if skills else "None"}
-Experience: {experience} years
+• Focus on learning: {', '.join(missing_skills) if missing_skills else 'Advanced projects'}
+• Build 2–3 portfolio projects  
+• Apply for internships and entry-level roles  
 
-User Question:
-{user_input}
-
-Include:
-1. Career guidance
-2. Skill gap analysis
-3. Learning roadmap
-4. Weekly plan
-5. Resume tips
-6. Career readiness score (0–100)
-7. 3 project ideas
+Ask me for:
+✔ Resume tips  
+✔ Interview questions  
+✔ Project ideas  
+✔ Career switching advice
 """
 
-    try:
-        response = model.generate_text(prompt)
-    except Exception:
-        response = (
-            "⚠️ IBM Watsonx service is temporarily unavailable.\n"
-            "Please try again later."
-        )
-
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": response
-    })
-
-    with st.chat_message("assistant"):
-        st.markdown(response)
-
-# ---------------- CHAT EXPORT ----------------
-if st.session_state.messages:
-    chat_log = ""
-    for m in st.session_state.messages:
-        role = "User" if m["role"] == "user" else "SkillPath AI"
-        chat_log += f"{role}: {m['content']}\n\n"
-
-    st.download_button(
-        "📄 Download Chat History",
-        chat_log,
-        "skillpath_chat.txt",
-        "text/plain"
-    )
+    st.session_state.chat.append({"role": "assistant", "content": response})
