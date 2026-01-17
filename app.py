@@ -20,92 +20,142 @@ if "user_email" not in st.session_state:
     st.session_state.user_email = ""
 
 if "chat" not in st.session_state:
-    st.session_state.chat = [
-        {
-            "role": "assistant",
-            "content": "Hi 👋 I’m SkillPath AI. Ask me about careers, skills, roadmaps, projects, or interviews!"
-        }
-    ]
+    st.session_state.chat = []
 
 # -------------------------------------------------
-# LOGIN PAGE
+# LOGIN
 # -------------------------------------------------
 if not st.session_state.logged_in:
     st.title("🔐 SkillPath AI Login")
-    st.caption("Simple email-based login (demo-safe & cloud-stable)")
-
-    email = st.text_input("📧 Enter your email")
+    email = st.text_input("Enter your email")
 
     if st.button("Login"):
-        if email.strip() == "":
-            st.error("Please enter a valid email")
-        else:
+        if email.strip():
             st.session_state.logged_in = True
             st.session_state.user_email = email
-            st.session_state.chat = [
-                {
-                    "role": "assistant",
-                    "content": f"Welcome {email}! 👋 I’m SkillPath AI."
-                }
-            ]
+            st.session_state.chat = [{
+                "role": "assistant",
+                "content": f"Welcome {email}! 👋 Tell me your goal and I’ll guide you step by step."
+            }]
             st.rerun()
+        else:
+            st.error("Please enter a valid email")
 
     st.stop()
 
 # -------------------------------------------------
 # DATA
 # -------------------------------------------------
-CAREER_DATA = {
-    "Data Analyst": ["Python", "SQL", "Excel", "Statistics", "Power BI"],
-    "Web Developer": ["HTML", "CSS", "JavaScript", "React"],
-    "AI Engineer": ["Python", "Machine Learning", "Deep Learning"],
-    "Digital Marketer": ["SEO", "Content Writing", "Analytics"],
-    "Cybersecurity Analyst": ["Networking", "Linux", "Security Basics"]
+CAREERS = {
+    "Web Developer": {
+        "skills": ["HTML", "CSS", "JavaScript", "React"],
+        "projects": [
+            "Portfolio Website",
+            "Todo App (React)",
+            "E-commerce Frontend",
+            "API-based Dashboard"
+        ]
+    },
+    "Data Analyst": {
+        "skills": ["Python", "SQL", "Excel", "Statistics", "Power BI"],
+        "projects": [
+            "Sales Data Dashboard",
+            "COVID Data Analysis",
+            "E-commerce Analytics"
+        ]
+    }
 }
 
 COURSES = {
+    "HTML": "freeCodeCamp HTML",
+    "CSS": "freeCodeCamp CSS",
+    "JavaScript": "JavaScript.info",
+    "React": "Meta React Certification",
     "Python": "IBM Python for Data Science",
-    "SQL": "SQL for Data Analysis (Coursera)",
-    "Power BI": "Microsoft Power BI Learning Path",
-    "Machine Learning": "IBM Machine Learning Certificate",
-    "React": "Meta Frontend Developer"
+    "SQL": "SQL for Data Analysis – Coursera",
+    "Power BI": "Microsoft Power BI Learning Path"
 }
 
 # -------------------------------------------------
-# CHAT ENGINE (FAST)
+# CHAT ENGINE (SMARTER)
 # -------------------------------------------------
-def generate_response(text, career, missing_skills):
-    t = text.lower()
+def chat_engine(message, career, skills):
+    msg = message.lower()
+    required = CAREERS[career]["skills"]
+    missing = [s for s in required if s not in skills]
 
-    if "roadmap" in t:
+    # ROADMAP
+    if "roadmap" in msg or "from scratch" in msg:
         return f"""
-### 🗺️ Roadmap to become a **{career}**
-**Beginner:** Learn fundamentals  
-**Intermediate:** Build projects  
-**Advanced:** Certifications & real-world experience
+### 🗺️ {career} Roadmap
+
+**Step 1 – Basics**
+Learn: {', '.join(required[:2])}
+
+**Step 2 – Intermediate**
+Learn: {', '.join(required[2:])}
+
+**Step 3 – Projects**
+Build real-world projects and deploy them
+
+**Step 4 – Jobs**
+Apply for internships and junior roles
 """
 
-    if "skill" in t:
-        if missing_skills:
-            return f"You should focus on learning: **{', '.join(missing_skills)}**."
-        return "🎉 You already have all the core skills!"
+    # PROJECT GUIDANCE
+    if "project" in msg:
+        projects = CAREERS[career]["projects"]
+        return f"""
+### 🛠️ Recommended Projects for {career}
 
-    if "project" in t:
-        return "Build 2–3 real-world projects and publish them on GitHub."
+{chr(10).join([f"• {p}" for p in projects])}
 
-    if "job" in t or "salary" in t:
-        return f"{career} roles are in **high demand**. Focus on skills + internships."
+Start with the first one and improve gradually.
+"""
 
-    if "interview" in t:
-        return "Practice SQL/Python questions, explain projects clearly, and revise fundamentals."
+    # SKILLS
+    if "skill" in msg:
+        if missing:
+            return f"""
+### 📚 Skills You Need to Learn
+{', '.join(missing)}
 
-    return "I can help with career paths, skills, projects, interviews, and learning plans."
+Focus on one skill at a time.
+"""
+        else:
+            return "🎉 You already have the core skills. Focus on projects now."
+
+    # INTERVIEW
+    if "interview" in msg:
+        return f"""
+### 🎯 Interview Preparation for {career}
+
+• Explain your projects clearly  
+• Practice coding problems  
+• Revise fundamentals  
+• Mock interviews
+"""
+
+    # JOBS
+    if "job" in msg or "salary" in msg:
+        return f"{career} roles are in **high demand**. Strong projects + skills = jobs."
+
+    # DEFAULT (SMART)
+    return f"""
+I understand you're aiming to become a **{career}**.
+
+You can ask me:
+• Roadmap from scratch  
+• What projects to build  
+• Which skills to learn next  
+• Interview preparation  
+"""
 
 # -------------------------------------------------
 # SIDEBAR
 # -------------------------------------------------
 st.sidebar.title("👤 Profile")
-st.sidebar.markdown(f"**Logged in as:** {st.session_state.user_email}")
+st.sidebar.write(st.session_state.user_email)
 
 education = st.sidebar.selectbox(
     "Education Level",
@@ -114,17 +164,16 @@ education = st.sidebar.selectbox(
 
 career = st.sidebar.selectbox(
     "Target Career",
-    list(CAREER_DATA.keys())
+    list(CAREERS.keys())
 )
 
 skills = st.sidebar.multiselect(
     "Your Skills",
-    CAREER_DATA[career]
+    CAREERS[career]["skills"]
 )
 
 if st.sidebar.button("Logout"):
     st.session_state.logged_in = False
-    st.session_state.user_email = ""
     st.session_state.chat = []
     st.rerun()
 
@@ -132,73 +181,14 @@ if st.sidebar.button("Logout"):
 # MAIN UI
 # -------------------------------------------------
 st.title("🧠 SkillPath AI")
-st.caption("Fast, ChatGPT-style Career Guidance Assistant")
+st.caption("ChatGPT-style Career Guidance Assistant")
 
-required_skills = CAREER_DATA[career]
-missing = [s for s in required_skills if s not in skills]
+required = CAREERS[career]["skills"]
+missing = [s for s in required if s not in skills]
 
 # -------------------------------------------------
 # SKILL GAP CHART
 # -------------------------------------------------
-st.subheader("📊 Skill Gap Analysis")
-
-chart_data = {
-    "Skill": required_skills,
-    "Status": ["Have" if s in skills else "Missing" for s in required_skills]
-}
-
 fig = px.bar(
-    chart_data,
-    x="Skill",
-    color="Status",
-    color_discrete_map={"Have": "green", "Missing": "red"},
-    title="Skill Gap Chart"
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-# -------------------------------------------------
-# ROADMAP
-# -------------------------------------------------
-st.subheader("🛣 Career Roadmap")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown("### 🟢 Beginner")
-    st.write(required_skills[:2])
-
-with col2:
-    st.markdown("### 🟡 Intermediate")
-    st.write(required_skills[2:4])
-
-with col3:
-    st.markdown("### 🔵 Advanced")
-    st.write("Projects, certifications, specialization")
-
-# -------------------------------------------------
-# COURSES
-# -------------------------------------------------
-st.subheader("🎓 Recommended Courses")
-
-for s in missing:
-    if s in COURSES:
-        st.write(f"• **{s}** → {COURSES[s]}")
-
-# -------------------------------------------------
-# CHAT UI (FAST)
-# -------------------------------------------------
-st.subheader("💬 SkillPath AI Chat")
-
-for msg in st.session_state.chat:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-user_input = st.chat_input("Ask about roadmap, skills, projects, interviews...")
-
-if user_input:
-    st.session_state.chat.append({"role": "user", "content": user_input})
-
-    reply = generate_response(user_input, career, missing)
-
-    st.session_state.chat.append({"role": "assistant", "content": reply})
+    x=required,
+    y=[1 if s in skills else 0 for s in require]()
