@@ -190,5 +190,11 @@ missing = [s for s in required if s not in skills]
 # SKILL GAP CHART
 # -------------------------------------------------
 fig = px.bar(
-    x=required,
-    y=[1 if s in skills else 0 for s in require]()
+    df,
+    x="Skill",
+    y="count",
+    color="Status",
+    title="Skill Gap Chart"
+)
+
+st.plotly_chart(fig, use_container_width=True)
