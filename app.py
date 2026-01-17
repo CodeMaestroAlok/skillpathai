@@ -1,9 +1,18 @@
 import streamlit as st
 import plotly.express as px
 
-# -----------------------------
-# SESSION STATE INIT
-# -----------------------------
+# -------------------------------------------------
+# PAGE CONFIG
+# -------------------------------------------------
+st.set_page_config(
+    page_title="SkillPath AI",
+    page_icon="🧠",
+    layout="wide"
+)
+
+# -------------------------------------------------
+# SESSION STATE
+# -------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -11,16 +20,19 @@ if "user_email" not in st.session_state:
     st.session_state.user_email = ""
 
 if "chat" not in st.session_state:
-    st.session_state.chat = []
+    st.session_state.chat = [
+        {
+            "role": "assistant",
+            "content": "Hi 👋 I’m SkillPath AI. Ask me about careers, skills, roadmaps, projects, or interviews!"
+        }
+    ]
 
-# -----------------------------
+# -------------------------------------------------
 # LOGIN PAGE
-# -----------------------------
+# -------------------------------------------------
 if not st.session_state.logged_in:
-    st.set_page_config(page_title="SkillPath AI Login", layout="centered")
-
     st.title("🔐 SkillPath AI Login")
-    st.markdown("Simple & secure email-based login")
+    st.caption("Simple email-based login (demo-safe & cloud-stable)")
 
     email = st.text_input("📧 Enter your email")
 
@@ -30,20 +42,68 @@ if not st.session_state.logged_in:
         else:
             st.session_state.logged_in = True
             st.session_state.user_email = email
-            st.session_state.chat = []
-            st.success("Login successful!")
+            st.session_state.chat = [
+                {
+                    "role": "assistant",
+                    "content": f"Welcome {email}! 👋 I’m SkillPath AI."
+                }
+            ]
             st.rerun()
 
     st.stop()
 
-# -----------------------------
-# MAIN APP
-# -----------------------------
-st.set_page_config(page_title="SkillPath AI", layout="wide")
+# -------------------------------------------------
+# DATA
+# -------------------------------------------------
+CAREER_DATA = {
+    "Data Analyst": ["Python", "SQL", "Excel", "Statistics", "Power BI"],
+    "Web Developer": ["HTML", "CSS", "JavaScript", "React"],
+    "AI Engineer": ["Python", "Machine Learning", "Deep Learning"],
+    "Digital Marketer": ["SEO", "Content Writing", "Analytics"],
+    "Cybersecurity Analyst": ["Networking", "Linux", "Security Basics"]
+}
 
-# -----------------------------
+COURSES = {
+    "Python": "IBM Python for Data Science",
+    "SQL": "SQL for Data Analysis (Coursera)",
+    "Power BI": "Microsoft Power BI Learning Path",
+    "Machine Learning": "IBM Machine Learning Certificate",
+    "React": "Meta Frontend Developer"
+}
+
+# -------------------------------------------------
+# CHAT ENGINE (FAST)
+# -------------------------------------------------
+def generate_response(text, career, missing_skills):
+    t = text.lower()
+
+    if "roadmap" in t:
+        return f"""
+### 🗺️ Roadmap to become a **{career}**
+**Beginner:** Learn fundamentals  
+**Intermediate:** Build projects  
+**Advanced:** Certifications & real-world experience
+"""
+
+    if "skill" in t:
+        if missing_skills:
+            return f"You should focus on learning: **{', '.join(missing_skills)}**."
+        return "🎉 You already have all the core skills!"
+
+    if "project" in t:
+        return "Build 2–3 real-world projects and publish them on GitHub."
+
+    if "job" in t or "salary" in t:
+        return f"{career} roles are in **high demand**. Focus on skills + internships."
+
+    if "interview" in t:
+        return "Practice SQL/Python questions, explain projects clearly, and revise fundamentals."
+
+    return "I can help with career paths, skills, projects, interviews, and learning plans."
+
+# -------------------------------------------------
 # SIDEBAR
-# -----------------------------
+# -------------------------------------------------
 st.sidebar.title("👤 Profile")
 st.sidebar.markdown(f"**Logged in as:** {st.session_state.user_email}")
 
@@ -54,12 +114,12 @@ education = st.sidebar.selectbox(
 
 career = st.sidebar.selectbox(
     "Target Career",
-    ["Data Analyst", "Data Scientist", "Web Developer", "AI Engineer"]
+    list(CAREER_DATA.keys())
 )
 
 skills = st.sidebar.multiselect(
     "Your Skills",
-    ["Python", "SQL", "Excel", "Statistics", "Power BI"]
+    CAREER_DATA[career]
 )
 
 if st.sidebar.button("Logout"):
@@ -68,97 +128,77 @@ if st.sidebar.button("Logout"):
     st.session_state.chat = []
     st.rerun()
 
-# -----------------------------
-# HEADER
-# -----------------------------
+# -------------------------------------------------
+# MAIN UI
+# -------------------------------------------------
 st.title("🧠 SkillPath AI")
-st.caption("ChatGPT-style Career Guidance Assistant")
+st.caption("Fast, ChatGPT-style Career Guidance Assistant")
 
-# -----------------------------
-# SKILL GAP ANALYSIS
-# -----------------------------
+required_skills = CAREER_DATA[career]
+missing = [s for s in required_skills if s not in skills]
+
+# -------------------------------------------------
+# SKILL GAP CHART
+# -------------------------------------------------
 st.subheader("📊 Skill Gap Analysis")
 
-career_skills = {
-    "Data Analyst": ["Python", "SQL", "Excel", "Statistics", "Power BI"],
-    "Data Scientist": ["Python", "Statistics", "SQL", "Machine Learning"],
-    "Web Developer": ["HTML", "CSS", "JavaScript", "Python"],
-    "AI Engineer": ["Python", "Deep Learning", "Maths"]
+chart_data = {
+    "Skill": required_skills,
+    "Status": ["Have" if s in skills else "Missing" for s in required_skills]
 }
-
-required = career_skills.get(career, [])
-missing = [s for s in required if s not in skills]
-
-chart_data = []
-for s in required:
-    chart_data.append({
-        "Skill": s,
-        "Status": "Have" if s in skills else "Missing"
-    })
 
 fig = px.bar(
     chart_data,
     x="Skill",
     color="Status",
-    title="Skill Gap Chart",
-    color_discrete_map={"Have": "green", "Missing": "red"}
+    color_discrete_map={"Have": "green", "Missing": "red"},
+    title="Skill Gap Chart"
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# -----------------------------
-# CAREER ROADMAP
-# -----------------------------
+# -------------------------------------------------
+# ROADMAP
+# -------------------------------------------------
 st.subheader("🛣 Career Roadmap")
 
-st.markdown("### 🟢 Beginner")
-st.write(["Python", "SQL"])
+col1, col2, col3 = st.columns(3)
 
-st.markdown("### 🟡 Intermediate")
-st.write(["Excel", "Power BI"])
+with col1:
+    st.markdown("### 🟢 Beginner")
+    st.write(required_skills[:2])
 
-st.markdown("### 🔵 Advanced")
-st.write("Specialization, certifications, real-world projects")
+with col2:
+    st.markdown("### 🟡 Intermediate")
+    st.write(required_skills[2:4])
 
-# -----------------------------
+with col3:
+    st.markdown("### 🔵 Advanced")
+    st.write("Projects, certifications, specialization")
+
+# -------------------------------------------------
 # COURSES
-# -----------------------------
+# -------------------------------------------------
 st.subheader("🎓 Recommended Courses")
 
-course_map = {
-    "Python": "IBM Python for Data Science",
-    "SQL": "SQL for Data Analysis – Coursera",
-    "Excel": "Excel for Data Analysis",
-    "Power BI": "Microsoft Power BI Learning Path",
-    "Statistics": "Statistics for Data Science"
-}
-
 for s in missing:
-    if s in course_map:
-        st.write(f"• **{s}** → {course_map[s]}")
+    if s in COURSES:
+        st.write(f"• **{s}** → {COURSES[s]}")
 
-# -----------------------------
-# CHATBOT
-# -----------------------------
+# -------------------------------------------------
+# CHAT UI (FAST)
+# -------------------------------------------------
 st.subheader("💬 SkillPath AI Chat")
 
 for msg in st.session_state.chat:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-user_input = st.chat_input("Ask about careers, skills, roadmap, interviews...")
+user_input = st.chat_input("Ask about roadmap, skills, projects, interviews...")
 
 if user_input:
     st.session_state.chat.append({"role": "user", "content": user_input})
 
-    # Simple intelligent responses
-    if "roadmap" in user_input.lower():
-        response = f"To become a {career}, start with {', '.join(required[:2])}, then move to advanced tools."
-    elif "skill" in user_input.lower():
-        response = f"You should focus on learning: {', '.join(missing) if missing else 'No missing skills!'}"
-    elif "job" in user_input.lower():
-        response = f"{career} roles are in high demand. Build projects and apply for internships."
-    else:
-        response = "I can help you with career paths, skills, projects, and interview preparation."
+    reply = generate_response(user_input, career, missing)
 
-    st.session_state.chat.append({"role": "assistant", "content": response})
+    st.session_state.chat.append({"role": "assistant", "content": reply})
