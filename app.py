@@ -1,173 +1,166 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
 import plotly.express as px
-import time
 
-# ------------------ PAGE CONFIG ------------------
+# --------------------------------------------------
+# PAGE CONFIG
+# --------------------------------------------------
 st.set_page_config(
     page_title="SkillPath AI",
     page_icon="🧠",
     layout="wide"
 )
 
-# ------------------ DATABASE ------------------
-conn = sqlite3.connect("users.db", check_same_thread=False)
-c = conn.cursor()
-
-c.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE
-)
-""")
-conn.commit()
-
-# ------------------ SESSION STATE ------------------
+# --------------------------------------------------
+# SESSION STATE INIT
+# --------------------------------------------------
 if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "email" not in st.session_state:
-    st.session_state.email = ""
+    st.session_state.logged_in = True   # demo login
+
+if "user_email" not in st.session_state:
+    st.session_state.user_email = "aloksp135@gmail.com"
+
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ------------------ LOGIN ------------------
-def login():
-    st.title("🔐 Login to SkillPath AI")
+# --------------------------------------------------
+# SIDEBAR – PROFILE
+# --------------------------------------------------
+with st.sidebar:
+    st.title("👤 Profile")
+    st.caption(f"Logged in as: **{st.session_state.user_email}**")
 
-    email = st.text_input("Email")
-
-    if st.button("Login / Sign Up"):
-        if not email:
-            st.error("Please enter an email")
-            return
-
-        c.execute("INSERT OR IGNORE INTO users (email) VALUES (?)", (email,))
-        conn.commit()
-
-        st.session_state.logged_in = True
-        st.session_state.email = email
-        st.success("Logged in successfully!")
-        st.rerun()
-
-# ------------------ LOGOUT ------------------
-def logout():
-    st.session_state.logged_in = False
-    st.session_state.email = ""
-    st.session_state.chat = []
-    st.rerun()
-
-# ------------------ DATA ------------------
-career_skills = {
-    "Data Analyst": ["Python", "SQL", "Excel", "Statistics", "Power BI"],
-    "Web Developer": ["HTML", "CSS", "JavaScript", "React", "Git"],
-    "AI Engineer": ["Python", "ML", "Deep Learning", "Math", "NLP"]
-}
-
-career_roadmap = {
-    "Beginner": ["Python", "SQL"],
-    "Intermediate": ["Excel", "Power BI"],
-    "Advanced": ["Projects", "Certifications", "Internships"]
-}
-
-# ------------------ CHATBOT ------------------
-def chatbot_reply(prompt, career):
-    time.sleep(0.5)  # improves UX, avoids spam replies
-
-    if "project" in prompt.lower():
-        return f"Build 2–3 real-world {career} projects and publish them on GitHub."
-
-    if "skills" in prompt.lower():
-        return f"Focus on mastering core {career} skills step by step."
-
-    if "interview" in prompt.lower():
-        return "Practice problem-solving, mock interviews, and real-world scenarios."
-
-    return "I can help with career paths, skills, projects, interviews, and learning plans."
-
-# ------------------ MAIN APP ------------------
-def app():
-    st.sidebar.title("👤 Profile")
-    st.sidebar.write(f"Logged in as: **{st.session_state.email}**")
-
-    education = st.sidebar.selectbox(
+    education = st.selectbox(
         "Education Level",
-        ["High School", "Undergraduate", "Postgraduate"]
+        ["High School", "Undergraduate", "Graduate"]
     )
 
-    career = st.sidebar.selectbox(
+    career = st.selectbox(
         "Target Career",
-        list(career_skills.keys())
+        ["Data Analyst", "Web Developer", "AI Engineer"]
     )
 
-    user_skills = st.sidebar.multiselect(
+    skills = st.multiselect(
         "Your Skills",
-        career_skills[career]
+        ["Python", "SQL", "Excel", "Power BI", "HTML", "CSS", "JavaScript", "React"]
     )
 
-    if st.sidebar.button("Logout"):
-        logout()
+    if st.button("Logout"):
+        st.session_state.chat = []
+        st.session_state.logged_in = False
+        st.stop()
 
-    st.title("🧠 SkillPath AI")
-    st.caption("ChatGPT-style Career Guidance Assistant")
+# --------------------------------------------------
+# MAIN TITLE
+# --------------------------------------------------
+st.markdown("## 🧠 SkillPath AI")
+st.caption("ChatGPT-style Career Guidance Assistant")
 
-    # ------------------ SKILL GAP ------------------
-    required = career_skills[career]
-    missing = [s for s in required if s not in user_skills]
+# --------------------------------------------------
+# SKILL GAP ANALYSIS
+# --------------------------------------------------
+career_skills = {
+    "Data Analyst": ["Python", "SQL", "Excel", "Power BI"],
+    "Web Developer": ["HTML", "CSS", "JavaScript", "React"],
+    "AI Engineer": ["Python", "Machine Learning", "Deep Learning"]
+}
 
-    df = pd.DataFrame({
-        "Skill": required,
-        "Status": ["Missing" if s in missing else "Available" for s in required],
-        "Count": [1] * len(required)
-    })
+required = career_skills.get(career, [])
+missing = [s for s in required if s not in skills]
 
-    st.subheader("📊 Skill Gap Analysis")
+df = pd.DataFrame({
+    "Skill": required,
+    "Status": ["Have" if s in skills else "Missing" for s in required]
+})
 
+if not df.empty:
     fig = px.bar(
         df,
         x="Skill",
-        y="Count",
         color="Status",
-        color_discrete_map={
-            "Missing": "#ff4b4b",
-            "Available": "#2ecc71"
-        }
+        title="Skill Gap Chart",
+        color_discrete_map={"Have": "green", "Missing": "red"}
     )
-
     st.plotly_chart(fig, use_container_width=True)
 
-    # ------------------ ROADMAP ------------------
-    st.subheader("🛣 Career Roadmap")
-    for level, skills in career_roadmap.items():
-        st.markdown(f"**{level}**")
-        st.write(", ".join(skills))
+# --------------------------------------------------
+# CHAT DISPLAY
+# --------------------------------------------------
+st.markdown("## 💬 SkillPath AI Chat")
 
-    # ------------------ CHAT ------------------
-    st.subheader("💬 SkillPath AI Chat")
+for msg in st.session_state.chat:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    for msg in st.session_state.chat:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
+# --------------------------------------------------
+# CHATBOT LOGIC (FIXED)
+# --------------------------------------------------
+def generate_response(user_text: str) -> str:
+    user_text = user_text.lower()
 
-    user_input = st.chat_input("Ask about roadmap, skills, projects, interviews...")
+    if "roadmap" in user_text:
+        return f"""
+### 🛣 Roadmap for **{career}**
 
-    if user_input:
-        st.session_state.chat.append({
-            "role": "user",
-            "content": user_input
-        })
+**Beginner**
+- Learn fundamentals
+- Practice basics daily
 
-        reply = chatbot_reply(user_input, career)
+**Intermediate**
+- Build real projects
+- Learn tools used in industry
 
-        st.session_state.chat.append({
-            "role": "assistant",
-            "content": reply
-        })
+**Advanced**
+- Certifications
+- Internships
+- Open-source contributions
+"""
 
-        st.rerun()
+    if "project" in user_text:
+        return """
+### 🧪 Project Ideas
+1. Portfolio website
+2. Dashboard using real data
+3. API-based mini app
+"""
 
-# ------------------ ROUTING ------------------
-if not st.session_state.logged_in:
-    login()
-else:
-    app()
+    if "skill" in user_text:
+        return f"""
+### 📌 Skills Needed for {career}
+- {", ".join(required)}
+"""
+
+    if "interview" in user_text:
+        return """
+### 🎤 Interview Prep
+- Revise fundamentals
+- Practice mock interviews
+- Build confidence
+"""
+
+    return "I can help with **roadmaps, skills, projects, interviews, and learning plans**. Ask me anything!"
+
+# --------------------------------------------------
+# CHAT INPUT (NO RERUN BUG)
+# --------------------------------------------------
+user_input = st.chat_input("Ask about roadmap, skills, projects, interviews...")
+
+if user_input:
+    # Add user message
+    st.session_state.chat.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    # Generate response
+    response = generate_response(user_input)
+
+    # Add assistant message
+    st.session_state.chat.append({
+        "role": "assistant",
+        "content": response
+    })
+
+    # Display immediately (NO rerun)
+    with st.chat_message("assistant"):
+        st.markdown(response)
